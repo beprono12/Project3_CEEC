@@ -1,0 +1,17 @@
+../Core/IMU/bno085.c:9:14:q14	16	static
+../Core/IMU/bno085.c:12:14:q9	16	static
+../Core/IMU/bno085.c:15:14:q8	16	static
+../Core/IMU/bno085.c:18:14:q4	16	static
+../Core/IMU/bno085.c:20:13:quaternionToEuler	40	static
+../Core/IMU/bno085.c:31:13:sendPacket	40	static
+../Core/IMU/bno085.c:45:13:setFeature	48	static
+../Core/IMU/bno085.c:63:6:BNO085_EnableAccelerometer	16	static
+../Core/IMU/bno085.c:66:6:BNO085_EnableGyroscope	16	static
+../Core/IMU/bno085.c:69:6:BNO085_EnableMagneticField	16	static
+../Core/IMU/bno085.c:72:6:BNO085_EnableLinearAccel	16	static
+../Core/IMU/bno085.c:75:6:BNO085_EnableRotationVector	16	static
+../Core/IMU/bno085.c:78:6:BNO085_EnableARVR	16	static
+../Core/IMU/bno085.c:82:6:BNO085_Init	24	static
+../Core/IMU/bno085.c:99:6:BNO085_Process	24	static
+../Core/IMU/bno085.c:110:13:parse	32	static
+../Core/IMU/bno085.c:174:19:BNO085_ReadPacket	32	static

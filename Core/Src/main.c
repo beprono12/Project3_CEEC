@@ -23,11 +23,14 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-#include "tft_gc9a01.h"
-#include "NRF24.h"
-#include "NRF24_reg_addresses.h"
+#include "gc9a01a.h"
+#include "DrawInterface.h"
+#include "NRF_comm.h"
+#include "GPS_run.h"
 #include "gps.h"
-
+#include "bno085.h"
+#include "compass.h"
+#include "Buzzer.h"
 /* Lưu ý! math.h, string.h đã được include trong các file.h ở trên */
 
 /* USER CODE END Includes */
@@ -35,54 +38,13 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-/* Màn hình đang hiển thị */
-typedef enum {
-    SCREEN_RADAR,
-    SCREEN_MESSAGE
-} TrangThaiManHinh;
-
-
-/* Gói dữ liệu gửi: Node -> Trạm ESP32 */
-typedef struct __attribute__((packed)) {
-    uint16_t header;
-	double lat;   /* vĩ độ */
-    double lon;   /* kinh độ */
-    float yaw;   /* góc yaw */
-    uint8_t footer;
-} DuLieuGui;
-
-
-/* Gói dữ liệu nhận: Trạm ESP32 -> Node */
-typedef struct __attribute__((packed)) {
-	uint16_t header; // check
-    double dest_lat;       /* vĩ độ đích */
-    double dest_lon;       /* kinh độ đích */
-    char  dest_name[13];  /* tên địa điểm đích */
-    uint8_t footer;
-} DuLieuNhan;
- _Static_assert(sizeof(DuLieuNhan) == 32, "ACK plod phai <= 32 byte");
-
-/* Tọa độ: x = vĩ độ (lat), y = kinh độ (lon) */
-typedef struct { double x; double y; } ToaDo;
-
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-// Định nghĩa "Khóa" bảo vệ gói tin
-#define GIA_TRI_HEADER 0xAA55
-#define GIA_TRI_FOOTER 0xBB
-
-#define PIN_NUT_BAM    PB0   /* chân nút bấm đổi màn hình */
-
-/* Màu giao diện radar */
-#define MAU_NEN        GC9A01A_GREEN
-#define MAU_LUOI       GC9A01A_BLACK
-#define MAU_MUI_TEN    GC9A01A_ORANGE
-#define MAU_DICH       GC9A01A_WHITE
-#define MAU_TEXT       GC9A01A_BLACK
+/* chân nút bấm đổi màn hình */
+#define PIN_NUT_BAM    PB0
 
 
 /* USER CODE END PD */
@@ -93,9 +55,10 @@ typedef struct { double x; double y; } ToaDo;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
-SPI_HandleTypeDef hspi3;
 
 TIM_HandleTypeDef htim10;
 
@@ -134,7 +97,7 @@ const osThreadAttr_t DisplayTask_attributes = {
 osThreadId_t IMUTaskHandle;
 const osThreadAttr_t IMUTask_attributes = {
   .name = "IMUTask",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for dataMutex */
@@ -147,6 +110,11 @@ osSemaphoreId_t nrfIrqSemHandle;
 const osSemaphoreAttr_t nrfIrqSem_attributes = {
   .name = "nrfIrqSem"
 };
+/* Definitions for bnoIrqSem */
+osSemaphoreId_t bnoIrqSemHandle;
+const osSemaphoreAttr_t bnoIrqSem_attributes = {
+  .name = "bnoIrqSem"
+};
 /* USER CODE BEGIN PV */
 
 extern osSemaphoreId_t nrfIrqSemHandle;   /* ngắt NRF (PA1) báo cho NRFTask   */
@@ -154,41 +122,29 @@ extern osMutexId_t     dataMutexHandle;   /* bảo vệ viTriHienTai, HuongDi,
                                              fromESP32, toESP32 (dữ liệu dùng
                                              chung giữa các task) */
 
-/* --- Kích thước giao diện radar --- */
-const int16_t TAM_X = 120;
-const int16_t TAM_Y = 120;
-const int16_t BAN_KINH_RADAR = 100;
-const float   MAX_RANGE_M = 50.0;
-const int16_t KHOANG_CACH_LUOI = 20;
 
 
 /* --- Màn hình TFT --- */
 GC9A01A tft;
 extern SPI_HandleTypeDef hspi1;
-volatile TrangThaiManHinh manHinhHienTai = SCREEN_RADAR;
-TrangThaiManHinh manHinhTruocDo = SCREEN_MESSAGE;
-uint8_t  canXoaManHinh = 1;       /* 1 = cần vẽ lại nền */
-uint32_t thoiGianQuetRadar = 0;
 
 
 /* --- Nút bấm --- */
 volatile uint32_t last_press = 0; /* thời điểm bấm nút lần cuối */
 
 
-/* --- NRF24 --- */
-DuLieuGui  toESP32;
+/* --- NRF24: Gói nhận từ Trạm ESP32 --- */
 DuLieuNhan fromESP32;
-uint8_t    diaChiNRF[5] = {0x12, 0x34, 0x56, 0x78, 0x9A};
-uint32_t   thoiGianGuiNRF = 0;
-
 
 /* --- Vị trí và hướng đi --- */
 ToaDo viTriHienTai = {0.0f, 0.0f};   /* vị trí ban đầu */
 float HuongDi = 0.0f;  /* hướng ban đầu */
 
 
-/* --- IMU --- */
-uint8_t imu_ok = 0;                  /* 1 = IMU khởi tạo thành công */
+/* --- BNO/ imu --- */
+uint8_t imu_ok = 0;
+BNO085   imu;
+
 
 
 /* USER CODE END PV */
@@ -201,12 +157,12 @@ static void MX_SPI1_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM10_Init(void);
 static void MX_USART1_UART_Init(void);
-static void MX_SPI3_Init(void);
+static void MX_I2C1_Init(void);
 void StartDefaultTask(void *argument);
 void StartGPSTask(void *argument);
 void StartNRFTask(void *argument);
 void StartDisplayTask(void *argument);
-void StartTask05(void *argument);
+void StartIMUTask(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -219,312 +175,25 @@ static void Debug_Print(const char *str) {
    (void)str;
 }
 
-/* Lấy tọa độ đích đã nhận từ Trạm ESP32 */
-ToaDo layToaDoDich()    {
-	ToaDo td = {fromESP32.dest_lat,  fromESP32.dest_lon};
-    return td;
-}
 
-/* ========== NRF24 ========== */
-
-void KhoiTao_NRF24(void) {
-    nrf24_init();
-
-    /*Sóng: kênh, tốc độ, công suất, crc*/
-    nrf24_set_channel(90);
-    nrf24_data_rate(_1mbps);
-    nrf24_tx_pwr(_0dbm);
-    nrf24_set_crc(en_crc, _1byte);
-
-    /*Payload động và ACK kèm dữ liệu*/
-    nrf24_dpl(enable);
-    nrf24_set_rx_dpl(0, enable);
-    nrf24_en_ack_pld(enable);
-
-    /*Tự gửi lại khi chưa nhận được ACK*/
-    nrf24_auto_retr_delay(5);
-    nrf24_auto_retr_limit(15);
-
-    /*Mở đường gửi và nhận (cùng địa chỉ đã khai báo)*/
-    nrf24_open_tx_pipe(diaChiNRF);
-    nrf24_open_rx_pipe(0, diaChiNRF);
-
-    /*Xóa bộ đệm cũ*/
-    nrf24_flush_rx(); // Xả rác bộ đệm nhận
-    nrf24_flush_tx(); // Xả rác bộ đệm phát
-
-    nrf24_stop_listen();
-}
-
-
-// CÁC HÀM VẼ GIAO DIỆN MÀN HÌNH
-
-/* ========== GIAO DIỆN 1: RADAR ========== */
-
-/*Vẽ nền radar*/
-void veNenRadar() {
-  TFT_FillScreen(&tft, MAU_NEN);
-
-  for (int16_t x = 0; x < TFT_WIDTH; x += KHOANG_CACH_LUOI) {
-      TFT_DrawFastVLine(&tft, x, 0, 240, MAU_LUOI);
-  }
-  for (int16_t y = 0; y < TFT_HEIGHT; y += KHOANG_CACH_LUOI) {
-      TFT_DrawFastHLine(&tft, 0, y, 240, MAU_LUOI);
-  }
-}
-
-/*Vẽ mũi tên thiết bị ở tâm*/
-void veMuiTenThietBi() {
-  int16_t dai = 12; int16_t rong = 8;
-  int16_t x0 = TAM_X, y0 = TAM_Y - dai;
-  int16_t x1 = TAM_X - rong, y1 = TAM_Y + dai / 2;
-  int16_t x2 = TAM_X + rong, y2 = TAM_Y + dai / 2;
-  TFT_FillTriangle(&tft, x0, y0, x1, y1, x2, y2, MAU_MUI_TEN);
-}
-
-/*Vẽ chấm đích */
-void veChamDich(float khoangCach, float gocTuongDoi) {
-
-  //static giữ nguyên giá trị vị trí cũ sau mỗi lần thoát hàm
-  static int16_t x_cu = -1, y_cu = -1;
-  static uint8_t ngoaiPhamVi_cu = 0;
-
-  // Xóa chấm sáng cũ bằng màu nền
-  if (x_cu != -1 && y_cu != -1) {
-      TFT_FillCircle(&tft, x_cu, y_cu, 5, MAU_NEN);
-      if (ngoaiPhamVi_cu) TFT_DrawCircle(&tft, x_cu, y_cu, 7, MAU_NEN);
-  }
-
-  // Tính vị trí mới
-  float khoangCachVeMan = (khoangCach > MAX_RANGE_M) ? MAX_RANGE_M : khoangCach;
-  uint8_t ngoaiPhamVi = (khoangCach > MAX_RANGE_M);
-  float banKinhPx = (khoangCachVeMan / MAX_RANGE_M) * BAN_KINH_RADAR;
-  float rad = gocTuongDoi * M_PI / 180.0;
-
-  int16_t x = TAM_X + (int16_t)(banKinhPx * sinf(rad));
-  int16_t y = TAM_Y - (int16_t)(banKinhPx * cosf(rad));
-
-  //Vẽ chấm sáng mới
-  TFT_FillCircle(&tft, x, y, 5, MAU_DICH);
-  if (ngoaiPhamVi) TFT_DrawCircle(&tft, x, y, 7, MAU_DICH);
-
-  //Cập nhật lại giá trị để xóa lần sau
-  x_cu = x;
-  y_cu = y;
-  ngoaiPhamVi_cu = ngoaiPhamVi;
-}
-
-
-/* In khoảng cách*/
-void veKhoangCach(float khoangCach) {
-  char buf[24];
-  if (khoangCach <= 4.0) {
-    snprintf(buf, sizeof(buf), "    ARRIVED!   ");
-  }
-  else {
-    if (khoangCach < 1000.0) {
-      int phanNguyen = (int)khoangCach;
-      int phanThapPhan = (int)((khoangCach - (float)phanNguyen) * 10);
-      if(phanThapPhan < 0) phanThapPhan = -phanThapPhan;
-      snprintf(buf, sizeof(buf), "   %d.%d m   ", phanNguyen, phanThapPhan);
-    }
-    else {
-      float kcVm = khoangCach / 1000.0;
-      int phanNguyen = (int)kcVm;
-      int phanThapPhan = (int)((kcVm - (float)phanNguyen) * 100);
-      if(phanThapPhan < 0) phanThapPhan = -phanThapPhan;
-      snprintf(buf, sizeof(buf), "   %d.%02d km  ", phanNguyen, phanThapPhan);
-    }
-  }
-  TFT_SetTextSize(2);
-  TFT_SetTextDatum(BC_DATUM);
-  TFT_DrawString(&tft, buf, TAM_X, TAM_Y + 80, MAU_TEXT, MAU_NEN);
-}
-
-
-/* Cập nhật toàn bộ giao diện Radar */
-void capNhatRadar() {
-  if (canXoaManHinh) {
-    veNenRadar();
-    canXoaManHinh = 0;
-  }
-
-  //Lấy vị trí, hướng hiện tại và vẽ thiết bị ở tâm
-  osMutexAcquire(dataMutexHandle, osWaitForever);
-  ToaDo      viTriThietBi = viTriHienTai;
-  float      huongDi      = HuongDi;
-  DuLieuNhan nhan         = fromESP32;        /* sao chép cả gói đích */
-  osMutexRelease(dataMutexHandle);
-
-  veMuiTenThietBi();
-
-  //  Chỉ tính toán và vẽ chấm sáng NẾU đã nhận đích từ Trạm
-  if (nhan.dest_name[0] != '\0') {
-      ToaDo viTriDich = {nhan.dest_lat, nhan.dest_lon };
-      float khoangCach = GPS_Calculate_Distance(viTriThietBi.x, viTriThietBi.y , viTriDich.x, viTriDich.y);
-      float gocPhuongVi = GPS_Calculate_Bearing(viTriThietBi.x, viTriThietBi.y , viTriDich.x, viTriDich.y);
-      float gocTuongDoi = gocPhuongVi - huongDi;
-
-      if (gocTuongDoi < 0) gocTuongDoi += 360.0;
-
-      veChamDich(khoangCach, gocTuongDoi); // Vẽ chấm sáng
-      veKhoangCach(khoangCach);            // In khoảng cách
-  }
-  else {
-      // Chưa có đích: Không vẽ chấm sáng + hiện SEARCHING
-      TFT_SetTextSize(2);
-      TFT_SetTextDatum(BC_DATUM);
-      TFT_DrawString(&tft, "  SEARCHING..  ", TAM_X, TAM_Y + 80, GC9A01A_ORANGE, MAU_NEN);
-  }
-}
-
-
-/* ========== GIAO DIỆN 2: MESSAGE ========== */
-
-void capNhatMessage() {
-  if (canXoaManHinh) {
-    TFT_FillScreen(&tft, GC9A01A_BLACK);
-    canXoaManHinh = 0;
-
-    /* Khung viền và đường kẻ */
-    TFT_DrawCircle(&tft, TAM_X, TAM_Y, 110, GC9A01A_GREEN);
-    TFT_DrawCircle(&tft, TAM_X, TAM_Y, 106, GC9A01A_DARKGREEN);
-    TFT_DrawFastHLine(&tft, 45, 75, 150, GC9A01A_GREEN);
-
-    TFT_SetTextSize(2);
-    TFT_SetTextDatum(TC_DATUM);
-    TFT_DrawString(&tft, "MESSAGE", TAM_X, 40, GC9A01A_GREEN, GC9A01A_BLACK);
-
-    char timeStr[30];
-    sprintf(timeStr, "Time: 00:00");
-    TFT_SetTextSize(2);
-    TFT_SetTextDatum(CC_DATUM);
-    TFT_DrawString(&tft, timeStr, TAM_X, 105, GC9A01A_GREEN, GC9A01A_BLACK);
-
-    /* Điểm đến */
-    TFT_SetTextSize(2);
-    TFT_SetTextDatum(BC_DATUM);
-    TFT_DrawString(&tft, "Destination:", TAM_X, 150, GC9A01A_GREEN, GC9A01A_BLACK);
-
-    /* Tên địa điểm nhận từ ESP32 (chưa nhận thì hiện Waiting...) */
-    if (fromESP32.dest_name[0] != '\0') {
-            TFT_DrawString(&tft, fromESP32.dest_name, TAM_X, 178, GC9A01A_ORANGE, GC9A01A_BLACK);
-    }
-    else {
-            TFT_DrawString(&tft, "Waiting...", TAM_X, 178, GC9A01A_ORANGE, GC9A01A_BLACK);
-    }
-  }
-}
-
-/* ---- GPS: đọc DMA buffer + mỗi 1 s cập nhật vị trí dùng chung ---- */
-void GPS_ChayMotVong(void)
-{
-    static uint32_t tick = 0;
-
-    GPS_Process();                  /* lấy byte mới từ DMA, ghép dòng, parse NMEA */
-
-    if (HAL_GetTick() - tick >= 1000)
-    {
-        tick = HAL_GetTick();
-
-        if (sys_gps_data.is_valid)  /* chỉ ghi khi đã có fix */
-        {
-            osMutexAcquire(dataMutexHandle, osWaitForever);
-            viTriHienTai.x = sys_gps_data.latitude;
-            viTriHienTai.y = sys_gps_data.longitude;
-            osMutexRelease(dataMutexHandle);
-        }
-    }
-}
-
-/* ---- NRF: xử lý cờ ngắt (nội dung y hệt nhánh PA1 cũ trong ISR) ---- */
-void NRF_XuLyNgat(void)
-{
-    uint8_t status = nrf24_r_status();
-
-    /* Gửi thành công */
-    if (status & (1 << TX_DS)) {
-        nrf24_clear_tx_ds();
-    }
-
-    /* Nhận được dữ liệu */
-    if (status & (1 << RX_DR)) {
-        if (nrf24_data_available()) {
-            DuLieuNhan temp_nhan = {0};
-            nrf24_receive((uint8_t *)&temp_nhan, sizeof(temp_nhan));
-            if (temp_nhan.header == GIA_TRI_HEADER && temp_nhan.footer == GIA_TRI_FOOTER) {
-            /* Chặn gói rỗng (0,0) như cũ */
-            if (temp_nhan.dest_lat != 0.0f || temp_nhan.dest_lon != 0.0f)
-            {
-                temp_nhan.dest_name[12] = '\0';
-                /* Ghi gói đích vào biến dùng chung: giữ mutex để radar
-                   không đọc giữa chừng (struct 30 byte, copy không nguyên tử) */
-                osMutexAcquire(dataMutexHandle, osWaitForever);
-                fromESP32 = temp_nhan;
-                osMutexRelease(dataMutexHandle);
-            }
-            }
-            else {
-
-            }
-        }
-
-        nrf24_clear_rx_dr();
-        nrf24_flush_rx();
-    }
-
-    /* Lỗi kết nối (hết số lần gửi lại) */
-    if (status & (1 << MAX_RT)) {
-        nrf24_clear_max_rt();
-        nrf24_flush_tx();
-        nrf24_flush_rx();
-    }
-}
-
-/* ---- NRF: gửi định kỳ 200 ms ---- */
-void NRF_GuiDinhKy(void)
-{
-    if (HAL_GetTick() - thoiGianGuiNRF <= 200) return;
-    thoiGianGuiNRF = HAL_GetTick();
-
-    /* Chụp nhanh vị trí/hướng hiện tại vào gói gửi */
-    osMutexAcquire(dataMutexHandle, osWaitForever);
-    toESP32.header = GIA_TRI_HEADER;
-    toESP32.lat = viTriHienTai.x;
-    toESP32.lon = viTriHienTai.y;
-    toESP32.yaw = HuongDi;
-    toESP32.footer = GIA_TRI_FOOTER;
-    osMutexRelease(dataMutexHandle);
-
-    /* KHÔNG còn HAL_NVIC_DisableIRQ(EXTI1)/Enable nữa: ISR giờ không đụng
-       SPI2, mọi truy cập NRF đều nằm trong NRFTask nên không tranh chấp. */
-    nrf24_transmit((uint8_t *)&toESP32, sizeof(toESP32));
-}
-
-
-/* ---- Màn hình: đổi giao diện + vẽ lại ---- */
-void Display_ChayMotVong(void)
-{
-    if (manHinhHienTai != manHinhTruocDo) {
-        canXoaManHinh   = 1;
-        manHinhTruocDo  = manHinhHienTai;
-    }
-
-    /* KHÔNG còn tắt EXTI1 khi vẽ: TFT dùng SPI1, NRF dùng SPI2 (khác nhau) */
-    if (manHinhHienTai == SCREEN_RADAR)        capNhatRadar();
-    else if (manHinhHienTai == SCREEN_MESSAGE) capNhatMessage();
-}
-
-/* ---- (TÙY CHỌN, khi tích hợp xong IMU) ----
+/* ---- IMU: đọc BNO085, cập nhật HuongDi */
 void IMU_ChayMotVong(void)
 {
-    if (!imu_ok) return;
-    IMU_Update();                                   // đọc ICM-20948 (SPI3)
+    uint8_t co = 1;                    /* luôn thử đọc; BNO085_Process tự kiểm tra chân INT */
+    BNO085_Process(&imu, &co);
+
+    /* Chưa nhận gói Rotation Vector nào (quaternion còn 0) -> chưa có yaw hợp lệ */
+    if (imu.qw == 0.0f && imu.qx == 0.0f && imu.qy == 0.0f && imu.qz == 0.0f) return;
+
+    imu_ok = 1;
+    float huong = Compass_GetHeading(&imu);   /* 0..360°, 0 = Bắc */
+
     osMutexAcquire(dataMutexHandle, osWaitForever);
-    HuongDi = yaw;                                  // yaw từ yaw_fusion
+    HuongDi = huong;
     osMutexRelease(dataMutexHandle);
 }
-*/
+
+
 
 /* USER CODE END 0 */
 
@@ -562,7 +231,7 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM10_Init();
   MX_USART1_UART_Init();
-  MX_SPI3_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
   Debug_Print("System Boot\r\n");
@@ -571,7 +240,25 @@ int main(void)
   GPS_Init(&huart1);
 
   /*Khởi tạo IMU*/
-  imu_ok = IMU_Init();
+  BNO085_Init(&imu, &hi2c1,
+              BNO_INT_GPIO_Port, BNO_INT_Pin,
+              BNO_RST_GPIO_Port, BNO_RST_Pin);
+  HAL_Delay(200);
+  {
+      uint32_t t0 = HAL_GetTick();
+      uint8_t  co;
+      while (HAL_GetTick() - t0 < 1000) {
+          co = 1;
+          BNO085_Process(&imu, &co);
+      }
+  }
+  /* Chỉ cần Rotation Vector để lấy yaw (BNO tự fusion trong chip) */
+  BNO085_EnableRotationVector(&imu, 10000);
+  HAL_Delay(100);
+
+  Compass_SetHeadingOffset(80.0f);
+
+
 
   /*Khởi tạo màn hình GC9A01A*/
     GC9A01A_init(&tft, &hspi1,
@@ -580,8 +267,8 @@ int main(void)
                  GPIOA, GPIO_PIN_1, // BLK
                  GPIOA, GPIO_PIN_2  // RST
                  );
-    veNenRadar();
-    canXoaManHinh = 0;
+    //veNenRadar();
+    //canXoaManHinh = 0;
 
   /*Khởi tạo NRF24*/
   KhoiTao_NRF24();
@@ -601,6 +288,9 @@ int main(void)
   /* Create the semaphores(s) */
   /* creation of nrfIrqSem */
   nrfIrqSemHandle = osSemaphoreNew(1, 1, &nrfIrqSem_attributes);
+
+  /* creation of bnoIrqSem */
+  bnoIrqSemHandle = osSemaphoreNew(1, 1, &bnoIrqSem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -628,10 +318,11 @@ int main(void)
   DisplayTaskHandle = osThreadNew(StartDisplayTask, NULL, &DisplayTask_attributes);
 
   /* creation of IMUTask */
-  IMUTaskHandle = osThreadNew(StartTask05, NULL, &IMUTask_attributes);
+  IMUTaskHandle = osThreadNew(StartIMUTask, NULL, &IMUTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  Buzzer_Init();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -647,7 +338,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //freertos lo
+	  //nhờ FREERTOS
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -699,6 +390,40 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 400000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**
@@ -774,44 +499,6 @@ static void MX_SPI2_Init(void)
   /* USER CODE BEGIN SPI2_Init 2 */
 
   /* USER CODE END SPI2_Init 2 */
-
-}
-
-/**
-  * @brief SPI3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI3_Init(void)
-{
-
-  /* USER CODE BEGIN SPI3_Init 0 */
-
-  /* USER CODE END SPI3_Init 0 */
-
-  /* USER CODE BEGIN SPI3_Init 1 */
-
-  /* USER CODE END SPI3_Init 1 */
-  /* SPI3 parameter configuration*/
-  hspi3.Instance = SPI3;
-  hspi3.Init.Mode = SPI_MODE_MASTER;
-  hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi3.Init.CLKPolarity = SPI_POLARITY_HIGH;
-  hspi3.Init.CLKPhase = SPI_PHASE_2EDGE;
-  hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi3.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI3_Init 2 */
-
-  /* USER CODE END SPI3_Init 2 */
 
 }
 
@@ -916,13 +603,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, TFT_RST_Pin|TFT_DC_Pin|TFT_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(NRF_CSN_GPIO_Port, NRF_CSN_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, NRF_CSN_Pin|BUZZER_Pin|BNO_RST_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(NRF_CE_GPIO_Port, NRF_CE_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ICM_CS_GPIO_Port, ICM_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : NRF_IRQ_Pin */
   GPIO_InitStruct.Pin = NRF_IRQ_Pin;
@@ -937,11 +621,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BTN_PIN_Pin */
-  GPIO_InitStruct.Pin = BTN_PIN_Pin;
+  /*Configure GPIO pins : BTN_PIN_Pin BNO_INT_Pin */
+  GPIO_InitStruct.Pin = BTN_PIN_Pin|BNO_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(BTN_PIN_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : NRF_CSN_Pin */
   GPIO_InitStruct.Pin = NRF_CSN_Pin;
@@ -957,12 +641,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(NRF_CE_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ICM_CS_Pin */
-  GPIO_InitStruct.Pin = ICM_CS_Pin;
+  /*Configure GPIO pins : BUZZER_Pin BNO_RST_Pin */
+  GPIO_InitStruct.Pin = BUZZER_Pin|BNO_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(ICM_CS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
@@ -970,6 +654,9 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -993,6 +680,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
                 manHinhHienTai = SCREEN_RADAR;
             }
             last_press = curr_time;
+            Buzzer_Play(BUZ_CLICK); // còi PB5 kêu khi click nút
         }
     }
 
@@ -1003,6 +691,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
                                                    kernel kịp tạo semaphore */
             osSemaphoreRelease(nrfIrqSemHandle);/* gọi được từ ISR (CMSIS-V2) */
     }
+
+    // --- BNO085 (BNO_INT): báo cho IMUTask ---
+       if (GPIO_Pin == BNO_INT_Pin)
+       {
+           if (bnoIrqSemHandle != NULL)
+               osSemaphoreRelease(bnoIrqSemHandle);
+       }
 
 }
 /* USER CODE END 4 */
@@ -1091,22 +786,23 @@ void StartDisplayTask(void *argument)
   /* USER CODE END StartDisplayTask */
 }
 
-/* USER CODE BEGIN Header_StartTask05 */
+/* USER CODE BEGIN Header_StartIMUTask */
 /**
 * @brief Function implementing the IMUTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask05 */
-void StartTask05(void *argument)
+/* USER CODE END Header_StartIMUTask */
+void StartIMUTask(void *argument)
 {
-  /* USER CODE BEGIN StartTask05 */
+  /* USER CODE BEGIN StartIMUTask */
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  osSemaphoreAcquire(bnoIrqSemHandle, 50);  /* chờ INT, tối đa 50 ms (dự phòng nếu lỡ cạnh xuống) */
+	  IMU_ChayMotVong();
   }
-  /* USER CODE END StartTask05 */
+  /* USER CODE END StartIMUTask */
 }
 
 /**

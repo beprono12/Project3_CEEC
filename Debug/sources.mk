@@ -22,6 +22,8 @@ C_DEPS :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
+Core/BUZZER \
+Core/DrawInterface \
 Core/GPS \
 Core/IMU \
 Core/NRF \

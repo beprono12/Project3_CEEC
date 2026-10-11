@@ -20,6 +20,8 @@ RM := rm -rf
 -include Core/NRF/subdir.mk
 -include Core/IMU/subdir.mk
 -include Core/GPS/subdir.mk
+-include Core/DrawInterface/subdir.mk
+-include Core/BUZZER/subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)

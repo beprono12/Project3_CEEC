@@ -30,7 +30,7 @@ VCC, GND = 3.3V, GND
 
 **PB10 - SCK**
 
-**PB12 - CSN** 
+**PB12 - CSN**
 
 **PB13 - CE**
 
@@ -54,17 +54,25 @@ VCC, GND = 3.3V, GND
 
 
 
-**<4> ICM \[SPI3]**
+**<4> BNO \[I2C1]**
 
-**PB3 - SCK**
+**PB6 - SCL**
 
-**PB4 - MISO**
+**PB7 - SDA**
 
-**PB5 - MOSI**
+**PB8 - INT**
 
-**PA8 - CS**
+**PB9 - RST**
+
+**PS0, PS1 - GND (\*)**
 
 VCC, GND = 3.3V, GND
 
 
+
+<5> Buzzer
+
+PB5 - I/O
+
+GND, VCC - GND, 3.3V
 

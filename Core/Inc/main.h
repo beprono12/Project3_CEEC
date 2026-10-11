@@ -37,6 +37,41 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+
+/* Màn hình đang hiển thị */
+typedef enum {
+    SCREEN_RADAR,
+    SCREEN_MESSAGE
+} TrangThaiManHinh;
+
+
+
+
+/* Gói dữ liệu gửi: Node -> Trạm ESP32 */
+typedef struct __attribute__((packed)) {
+    uint16_t header;
+    double lat;   /* vĩ độ */
+    double lon;   /* kinh độ */
+    float yaw;    /* góc yaw */
+    uint8_t footer;
+} DuLieuGui;
+
+
+/* Gói dữ liệu nhận: Trạm ESP32 -> Node */
+typedef struct __attribute__((packed)) {
+    uint16_t header; // check
+    double dest_lat;       /* vĩ độ đích */
+    double dest_lon;       /* kinh độ đích */
+    char  dest_name[13];   /* tên địa điểm đích */
+    uint8_t footer;
+} DuLieuNhan;
+
+
+
+/* Tọa độ: x = vĩ độ (lat), y = kinh độ (lon) */
+typedef struct { double x; double y; } ToaDo;
+
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -73,8 +108,13 @@ void Error_Handler(void);
 #define NRF_CSN_GPIO_Port GPIOB
 #define NRF_CE_Pin GPIO_PIN_13
 #define NRF_CE_GPIO_Port GPIOB
-#define ICM_CS_Pin GPIO_PIN_8
-#define ICM_CS_GPIO_Port GPIOA
+#define BUZZER_Pin GPIO_PIN_5
+#define BUZZER_GPIO_Port GPIOB
+#define BNO_INT_Pin GPIO_PIN_8
+#define BNO_INT_GPIO_Port GPIOB
+#define BNO_INT_EXTI_IRQn EXTI9_5_IRQn
+#define BNO_RST_Pin GPIO_PIN_9
+#define BNO_RST_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
