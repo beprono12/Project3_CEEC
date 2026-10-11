@@ -22,14 +22,14 @@ C_DEPS :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
-Core/BUZZER \
-Core/DrawInterface \
-Core/GPS \
-Core/IMU \
-Core/NRF \
+Core/Module/BUZZER \
+Core/Module/DrawInterface \
+Core/Module/GPS \
+Core/Module/IMU \
+Core/Module/NRF \
+Core/Module/TFT \
 Core/Src \
 Core/Startup \
-Core/TFT \
 Drivers/STM32F4xx_HAL_Driver/Src \
 Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 \
 Middlewares/Third_Party/FreeRTOS/Source \

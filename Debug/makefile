@@ -14,14 +14,14 @@ RM := rm -rf
 -include Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/subdir.mk
 -include Middlewares/Third_Party/FreeRTOS/Source/subdir.mk
 -include Drivers/STM32F4xx_HAL_Driver/Src/subdir.mk
--include Core/TFT/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
--include Core/NRF/subdir.mk
--include Core/IMU/subdir.mk
--include Core/GPS/subdir.mk
--include Core/DrawInterface/subdir.mk
--include Core/BUZZER/subdir.mk
+-include Core/Module/TFT/subdir.mk
+-include Core/Module/NRF/subdir.mk
+-include Core/Module/IMU/subdir.mk
+-include Core/Module/GPS/subdir.mk
+-include Core/Module/DrawInterface/subdir.mk
+-include Core/Module/BUZZER/subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)

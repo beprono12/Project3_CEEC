@@ -59,15 +59,15 @@
 									<listOptionValue builtIn="false" value="../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Device/ST/STM32F4xx/Include"/>
 									<listOptionValue builtIn="false" value="../Drivers/CMSIS/Include"/>
-									<listOptionValue builtIn="false" value="../Core/NRF"/>
-									<listOptionValue builtIn="false" value="../Core/IMU"/>
-									<listOptionValue builtIn="false" value="../Core/TFT"/>
-									<listOptionValue builtIn="false" value="../Core/GPS"/>
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/include"/>
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2"/>
 									<listOptionValue builtIn="false" value="../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
-									<listOptionValue builtIn="false" value="../Core/DrawInterface"/>
-									<listOptionValue builtIn="false" value="../Core/BUZZER"/>
+									<listOptionValue builtIn="false" value="../Core/Module/NRF"/>
+									<listOptionValue builtIn="false" value="../Core/Module/TFT"/>
+									<listOptionValue builtIn="false" value="../Core/Module/DrawInterface"/>
+									<listOptionValue builtIn="false" value="../Core/Module/IMU"/>
+									<listOptionValue builtIn="false" value="../Core/Module/GPS"/>
+									<listOptionValue builtIn="false" value="../Core/Module/BUZZER"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.519459137" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>

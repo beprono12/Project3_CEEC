@@ -41,10 +41,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h \
- ../Core/TFT/gc9a01a.h ../Core/DrawInterface/DrawInterface.h \
- ../Core/NRF/NRF_comm.h ../Core/GPS/GPS_run.h ../Core/GPS/gps.h \
- ../Core/IMU/bno085.h ../Core/IMU/compass.h ../Core/IMU/bno085.h \
- ../Core/BUZZER/Buzzer.h
+ ../Core/Module/TFT/gc9a01a.h \
+ ../Core/Module/DrawInterface/DrawInterface.h \
+ ../Core/Module/NRF/NRF_comm.h ../Core/Module/GPS/GPS_run.h \
+ ../Core/Module/GPS/gps.h ../Core/Module/IMU/bno085.h \
+ ../Core/Module/IMU/compass.h ../Core/Module/IMU/bno085.h \
+ ../Core/Module/BUZZER/Buzzer.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h:
 ../Core/Inc/stm32f4xx_hal_conf.h:
@@ -88,12 +90,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h:
-../Core/TFT/gc9a01a.h:
-../Core/DrawInterface/DrawInterface.h:
-../Core/NRF/NRF_comm.h:
-../Core/GPS/GPS_run.h:
-../Core/GPS/gps.h:
-../Core/IMU/bno085.h:
-../Core/IMU/compass.h:
-../Core/IMU/bno085.h:
-../Core/BUZZER/Buzzer.h:
+../Core/Module/TFT/gc9a01a.h:
+../Core/Module/DrawInterface/DrawInterface.h:
+../Core/Module/NRF/NRF_comm.h:
+../Core/Module/GPS/GPS_run.h:
+../Core/Module/GPS/gps.h:
+../Core/Module/IMU/bno085.h:
+../Core/Module/IMU/compass.h:
+../Core/Module/IMU/bno085.h:
+../Core/Module/BUZZER/Buzzer.h:

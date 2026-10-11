@@ -1,0 +1,10 @@
+../Core/Module/DrawInterface/DrawInterface.c:42:13:canGiua	1
+../Core/Module/DrawInterface/DrawInterface.c:62:6:veNenRadar	3
+../Core/Module/DrawInterface/DrawInterface.c:77:13:xoaVungRadar	5
+../Core/Module/DrawInterface/DrawInterface.c:94:6:veChamDich	5
+../Core/Module/DrawInterface/DrawInterface.c:122:6:veMuiTenThietBi	1
+../Core/Module/DrawInterface/DrawInterface.c:131:6:veKhoangCach	5
+../Core/Module/DrawInterface/DrawInterface.c:159:6:capNhatRadar	4
+../Core/Module/DrawInterface/DrawInterface.c:196:6:capNhatMessage	5
+../Core/Module/DrawInterface/DrawInterface.c:251:13:canhBaoCapNhat	12
+../Core/Module/DrawInterface/DrawInterface.c:299:6:Display_ChayMotVong	4

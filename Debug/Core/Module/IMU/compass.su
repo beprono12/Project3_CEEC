@@ -1,0 +1,5 @@
+../Core/Module/IMU/compass.c:7:6:Compass_SetDeclination	16	static
+../Core/Module/IMU/compass.c:11:6:Compass_SetHeadingOffset	16	static
+../Core/Module/IMU/compass.c:15:7:Compass_GetHeading	24	static
+../Core/Module/IMU/compass.c:22:13:Compass_GetDirection	16	static
+../Core/Module/IMU/compass.c:34:9:Compass_IsReady	16	static

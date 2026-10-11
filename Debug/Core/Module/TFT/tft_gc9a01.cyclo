@@ -1,0 +1,14 @@
+../Core/Module/TFT/gc9a01a.h:188:20:GC9A01A_set_spi_datasize	1
+../Core/Module/TFT/gc9a01a.h:202:20:GC9A01A_start_spi_transaction	1
+../Core/Module/TFT/gc9a01a.h:206:20:GC9A01A_end_spi_transaction	1
+../Core/Module/TFT/gc9a01a.h:221:20:GC9A01A_transmit_data	1
+../Core/Module/TFT/tft_gc9a01.c:40:6:TFT_FillScreen	3
+../Core/Module/TFT/tft_gc9a01.c:52:6:TFT_DrawFastVLine	6
+../Core/Module/TFT/tft_gc9a01.c:61:6:TFT_DrawFastHLine	6
+../Core/Module/TFT/tft_gc9a01.c:71:6:TFT_SetTextDatum	1
+../Core/Module/TFT/tft_gc9a01.c:72:6:TFT_SetTextSize	1
+../Core/Module/TFT/tft_gc9a01.c:75:6:TFT_DrawChar	11
+../Core/Module/TFT/tft_gc9a01.c:103:6:TFT_DrawString	14
+../Core/Module/TFT/tft_gc9a01.c:128:6:TFT_DrawCircle	4
+../Core/Module/TFT/tft_gc9a01.c:144:6:TFT_FillCircle	4
+../Core/Module/TFT/tft_gc9a01.c:154:6:TFT_FillTriangle	9
